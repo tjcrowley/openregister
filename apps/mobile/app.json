@@ -1,0 +1,17 @@
+{
+  "name": "OpenRegister",
+  "displayName": "OpenRegister",
+  "version": "1.0.0",
+  "expo": {
+    "name": "OpenRegister",
+    "slug": "openregister",
+    "version": "1.0.0",
+    "orientation": "landscape",
+    "android": {
+      "package": "com.openregister.pos"
+    },
+    "ios": {
+      "bundleIdentifier": "com.openregister.pos"
+    }
+  }
+}

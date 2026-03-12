@@ -1,0 +1,112 @@
+groups:
+  - name: openregister_api
+    rules:
+      # -----------------------------------------------------------------------
+      # High error rate
+      # -----------------------------------------------------------------------
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High HTTP 5xx error rate (> 1%)"
+          description: "Current error rate is {{ $value | humanizePercentage }}. Investigate API logs."
+
+      # -----------------------------------------------------------------------
+      # Sync lag
+      # -----------------------------------------------------------------------
+      - alert: SyncLagHigh
+        expr: |
+          histogram_quantile(0.99, rate(sync_push_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Sync p99 latency exceeds 2 seconds"
+          description: "p99 sync push latency is {{ $value }}s. SLO target is 2s."
+
+      - alert: SyncLagCritical
+        expr: |
+          histogram_quantile(0.99, rate(sync_push_duration_seconds_bucket[5m])) > 10
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Sync p99 latency critically high (> 10s)"
+          description: "p99 sync push latency is {{ $value }}s."
+
+      # -----------------------------------------------------------------------
+      # Sale failures
+      # -----------------------------------------------------------------------
+      - alert: SaleFailureRateHigh
+        expr: |
+          (
+            sum(rate(sale_failed_total[5m]))
+            /
+            (sum(rate(sale_completed_total[5m])) + sum(rate(sale_failed_total[5m])))
+          ) > 0.005
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Sale failure rate exceeds 0.5%"
+          description: "Sale failure rate is {{ $value | humanizePercentage }}. Breaching SLO 4."
+
+      # -----------------------------------------------------------------------
+      # Database connections
+      # -----------------------------------------------------------------------
+      - alert: DatabaseConnectionPoolHigh
+        expr: |
+          pg_pool_connections_used / pg_pool_connections_max > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "DB connection pool utilisation > 80%"
+          description: "Pool is {{ $value | humanizePercentage }} full. Risk of exhaustion."
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          increase(pg_pool_exhausted_total[1h]) > 0
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection pool exhausted"
+          description: "{{ $value }} exhaustion events in the last hour."
+
+      # -----------------------------------------------------------------------
+      # Stripe webhook processing
+      # -----------------------------------------------------------------------
+      - alert: WebhookProcessingLag
+        expr: |
+          histogram_quantile(0.99, rate(webhook_processing_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Stripe webhook processing p99 > 10s"
+          description: "Webhook p99 latency is {{ $value }}s."
+
+      - alert: WebhookQueueDepthHigh
+        expr: |
+          bullmq_queue_size{queue="stripeWebhook"} > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Stripe webhook BullMQ queue depth > 500"
+          description: "Queue has {{ $value }} pending jobs. Possible consumer lag."

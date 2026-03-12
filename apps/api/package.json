@@ -1,0 +1,44 @@
+{
+  "name": "@openregister/api",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/helmet": "^11.0.0",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/rate-limit": "^9.0.0",
+    "@opentelemetry/api": "^1.8.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.51.0",
+    "@opentelemetry/instrumentation-fastify": "^0.36.0",
+    "@opentelemetry/instrumentation-pg": "^0.42.0",
+    "@opentelemetry/sdk-node": "^0.51.0",
+    "@opentelemetry/sdk-trace-node": "^1.24.0",
+    "@prisma/client": "^5.14.0",
+    "@openregister/events": "workspace:*",
+    "@openregister/types": "workspace:*",
+    "@openregister/validation": "workspace:*",
+    "bullmq": "^5.12.0",
+    "ioredis": "^5.3.0",
+    "jose": "^5.6.0",
+    "pino": "^9.2.0",
+    "pino-pretty": "^11.2.0",
+    "prom-client": "^15.1.0",
+    "stripe": "^16.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "prisma": "^5.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.0"
+  }
+}

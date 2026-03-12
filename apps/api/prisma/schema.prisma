@@ -1,0 +1,384 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CASHIER
+  SUPERVISOR
+  MANAGER
+  OWNER
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD_PRESENT
+  CARD_NOT_PRESENT
+  CRYPTO
+  GIFT_CARD
+}
+
+enum CryptoInvoiceStatus {
+  GENERATING
+  PENDING
+  PARTIAL
+  CONFIRMED
+  EXPIRED
+  ERROR
+}
+
+enum RegisterSessionStatus {
+  OPEN
+  CLOSED
+}
+
+model Merchant {
+  id                   String     @id @default(uuid()) @db.Uuid
+  name                 String
+  stripeAccountId      String?
+  stripePublishableKey String?
+  stripeSecretKey      String?
+  timezone             String     @default("UTC")
+  currency             String     @default("USD")
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  locations            Location[]
+  devices              Device[]
+  users                User[]
+  products             Product[]
+  taxRules             TaxRule[]
+  registerSessions     RegisterSession[]
+  sales                Sale[]
+
+  @@map("merchants")
+}
+
+model Location {
+  id         String   @id @default(uuid()) @db.Uuid
+  merchantId String   @db.Uuid
+  name       String
+  address    String?
+  timezone   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  devices          Device[]
+  registerSessions RegisterSession[]
+  inventoryItems   InventoryItem[]
+
+  @@index([merchantId])
+  @@map("locations")
+}
+
+model Device {
+  id           String    @id @default(uuid()) @db.Uuid
+  merchantId   String    @db.Uuid
+  locationId   String    @db.Uuid
+  name         String
+  deviceSecret String
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@index([merchantId])
+  @@map("devices")
+}
+
+model User {
+  id         String    @id @default(uuid()) @db.Uuid
+  merchantId String    @db.Uuid
+  name       String
+  email      String?
+  pinHash    String
+  role       UserRole  @default(CASHIER)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  registerSessions RegisterSession[]
+
+  @@unique([merchantId, email])
+  @@index([merchantId])
+  @@map("users")
+}
+
+model Category {
+  id         String   @id @default(uuid()) @db.Uuid
+  merchantId String   @db.Uuid
+  name       String
+  color      String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  products Product[]
+
+  @@index([merchantId])
+  @@map("categories")
+}
+
+model TaxRule {
+  id         String   @id @default(uuid()) @db.Uuid
+  merchantId String   @db.Uuid
+  name       String
+  rateBps    Int
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  products Product[]
+
+  @@index([merchantId])
+  @@map("tax_rules")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  merchantId  String   @db.Uuid
+  name        String
+  description String?
+  categoryId  String?  @db.Uuid
+  imageUrl    String?
+  basePrice   Int
+  taxRuleId   String?  @db.Uuid
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  merchant  Merchant         @relation(fields: [merchantId], references: [id])
+  category  Category?        @relation(fields: [categoryId], references: [id])
+  taxRule   TaxRule?         @relation(fields: [taxRuleId], references: [id])
+  variants  ProductVariant[]
+
+  @@index([merchantId])
+  @@index([merchantId, categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id             String   @id @default(uuid()) @db.Uuid
+  productId      String   @db.Uuid
+  merchantId     String   @db.Uuid
+  sku            String
+  name           String
+  price          Int
+  cost           Int?
+  barcode        String?
+  trackInventory Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  product        Product         @relation(fields: [productId], references: [id])
+  inventoryItems InventoryItem[]
+  saleLines      SaleLine[]
+
+  @@unique([merchantId, sku])
+  @@index([merchantId])
+  @@map("product_variants")
+}
+
+model InventoryItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  merchantId     String   @db.Uuid
+  variantId      String   @db.Uuid
+  locationId     String   @db.Uuid
+  quantityOnHand Int      @default(0)
+  reorderPoint   Int?
+  updatedAt      DateTime @updatedAt
+
+  variant  ProductVariant @relation(fields: [variantId], references: [id])
+  location Location       @relation(fields: [locationId], references: [id])
+
+  @@unique([variantId, locationId])
+  @@index([merchantId])
+  @@map("inventory_items")
+}
+
+model RegisterSession {
+  id               String                @id @default(uuid()) @db.Uuid
+  merchantId       String                @db.Uuid
+  locationId       String                @db.Uuid
+  userId           String                @db.Uuid
+  status           RegisterSessionStatus @default(OPEN)
+  openingCashCents Int                   @default(0)
+  closingCashCents Int?
+  countedCashCents Int?
+  varianceCents    Int?
+  openedAt         DateTime              @default(now())
+  closedAt         DateTime?
+  notes            String?
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  sales    Sale[]
+
+  @@index([merchantId])
+  @@index([merchantId, status])
+  @@map("register_sessions")
+}
+
+model Sale {
+  id            String     @id @default(uuid()) @db.Uuid
+  merchantId    String     @db.Uuid
+  locationId    String     @db.Uuid
+  registerId    String     @db.Uuid
+  sessionId     String     @db.Uuid
+  saleNumber    String
+  status        SaleStatus @default(PENDING)
+  subtotalCents Int
+  taxCents      Int
+  discountCents Int        @default(0)
+  totalCents    Int
+  customerId    String?    @db.Uuid
+  notes         String?
+  completedAt   DateTime?
+  voidedAt      DateTime?
+  createdAt     DateTime   @default(now())
+
+  merchant Merchant        @relation(fields: [merchantId], references: [id])
+  session  RegisterSession @relation(fields: [sessionId], references: [id])
+  lines    SaleLine[]
+  payments Payment[]
+  refunds  Refund[]
+  cryptoInvoices CryptoInvoice[]
+
+  @@unique([merchantId, saleNumber])
+  @@index([merchantId])
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@map("sales")
+}
+
+model SaleLine {
+  id             String @id @default(uuid()) @db.Uuid
+  saleId         String @db.Uuid
+  variantId      String @db.Uuid
+  qty            Int
+  unitCents      Int
+  taxCents       Int    @default(0)
+  discountCents  Int    @default(0)
+  lineTotalCents Int
+
+  sale    Sale           @relation(fields: [saleId], references: [id])
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@index([saleId])
+  @@map("sale_lines")
+}
+
+model Payment {
+  id                    String        @id @default(uuid()) @db.Uuid
+  saleId                String        @db.Uuid
+  merchantId            String        @db.Uuid
+  method                PaymentMethod
+  amountCents           Int
+  stripePaymentIntentId String?
+  stripeChargeId        String?
+  status                String        @default("pending")
+  capturedAt            DateTime?
+  createdAt             DateTime      @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@index([saleId])
+  @@index([merchantId])
+  @@map("payments")
+}
+
+model CryptoInvoice {
+  id               String              @id @default(uuid()) @db.Uuid
+  saleId           String              @db.Uuid
+  merchantId       String              @db.Uuid
+  address          String
+  amountCrypto     Decimal             @db.Decimal(30, 18)
+  currency         String
+  amountCents      Int
+  status           CryptoInvoiceStatus @default(GENERATING)
+  paidAmountCrypto Decimal?            @db.Decimal(30, 18)
+  txHash           String?
+  confirmedAt      DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime            @default(now())
+
+  sale Sale @relation(fields: [saleId], references: [id])
+
+  @@index([saleId])
+  @@index([merchantId])
+  @@index([address])
+  @@map("crypto_invoices")
+}
+
+model Refund {
+  id             String   @id @default(uuid()) @db.Uuid
+  saleId         String   @db.Uuid
+  merchantId     String   @db.Uuid
+  amountCents    Int
+  reason         String
+  stripeRefundId String?
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  sale  Sale         @relation(fields: [saleId], references: [id])
+  lines RefundLine[]
+
+  @@index([saleId])
+  @@map("refunds")
+}
+
+model RefundLine {
+  id          String @id @default(uuid()) @db.Uuid
+  refundId    String @db.Uuid
+  variantId   String @db.Uuid
+  qty         Int
+  amountCents Int
+
+  refund Refund @relation(fields: [refundId], references: [id])
+
+  @@map("refund_lines")
+}
+
+model EventLog {
+  id         BigInt   @id @default(autoincrement())
+  eventId    String   @unique @db.Uuid
+  merchantId String   @db.Uuid
+  deviceId   String   @db.Uuid
+  eventType  String
+  payload    Json
+  occurredAt DateTime
+  receivedAt DateTime @default(now())
+
+  @@index([merchantId, occurredAt])
+  @@index([merchantId, eventType])
+  @@map("event_log")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  merchantId String   @db.Uuid
+  userId     String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String   @db.Uuid
+  changes    Json?
+  ipAddress  String?
+  occurredAt DateTime @default(now())
+
+  @@index([merchantId, occurredAt])
+  @@map("audit_log")
+}
